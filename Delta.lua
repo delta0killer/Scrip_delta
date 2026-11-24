@@ -25,12 +25,14 @@ MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 
+-- Включаем Active для TitleBar, чтобы за него можно было таскать окно на телефоне
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
 TitleBar.Size = UDim2.new(1, 0, 0, 42)
 TitleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 TitleBar.BorderSizePixel = 1
 TitleBar.BorderColor3 = Color3.fromRGB(60, 60, 60)
+TitleBar.Active = true 
 TitleBar.Parent = MainFrame
 
 local TitleLabel = Instance.new("TextLabel")
@@ -108,7 +110,7 @@ local function CreateToggle(name, description, callback)
     end)
 end
 
-Underground Kill (Y = -25)
+-- ---------- Underground Kill (Y = -25) ----------
 local undergroundActive = false
 local savedCFrame = nil
 local UNDERGROUND_Y = -25
@@ -170,8 +172,8 @@ local function NoClip_Disable()
     end
 end
 
-Kill Aura (Zombies) RemoteEvent ----------
-local zombieRemote = ReplicatedStorage:WaitForChild("ZombieDamageRemote")
+-- ---------- Kill Aura (Zombies) ----------
+local zombieRemote = ReplicatedStorage:FindFirstChild("ZombieDamageRemote")
 
 local killAuraActive = false
 local killAuraConnection = nil
@@ -204,13 +206,16 @@ local function KillAura_Loop()
         end
     end
 
-    if bestTarget then
+    if bestTarget and zombieRemote then
         zombieRemote:FireServer(bestTarget)
     end
 end
 
 local function KillAura_Enable()
     if killAuraActive then return end
+    if not zombieRemote then
+        warn("[delta] Ошибка: RemoteEvent 'ZombieDamageRemote' не найден в игре!")
+    end
     killAuraActive = true
     killAuraConnection = RunService.Heartbeat:Connect(KillAura_Loop)
 end
@@ -245,7 +250,7 @@ end)
 CreateToggle("Test Function", "Демонстрационный переключатель", TestFunction_Toggle)
 
 local DestroyBtn = Instance.new("TextButton")
-DestroyBtn.Size = UDim2.new(1, -24, 0, 34)
+DestroyBtn.Size = UDim2.new(1, -50, 0, 34) -- Сделали чуть короче, чтобы не мешал кнопке ресайза
 DestroyBtn.Position = UDim2.new(0, 12, 1, -46)
 DestroyBtn.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
 DestroyBtn.BorderSizePixel = 1
@@ -256,6 +261,55 @@ DestroyBtn.Font = Enum.Font.GothamBold
 DestroyBtn.TextSize = 14
 DestroyBtn.Parent = MainFrame
 
+-- ============================================================
+-- НОВАЯ ФУНКЦИЯ: Кнопка изменения размера (в правом нижнем углу)
+-- ============================================================
+local ResizeBtn = Instance.new("TextButton")
+ResizeBtn.Size = UDim2.new(0, 24, 0, 24)
+ResizeBtn.Position = UDim2.new(1, -24, 1, -24)
+ResizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ResizeBtn.BorderSizePixel = 0
+ResizeBtn.Text = "◢"
+ResizeBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+ResizeBtn.TextSize = 14
+ResizeBtn.Active = true
+ResizeBtn.Parent = MainFrame
+
+local resizing = false
+local resizeStart = nil
+local startSize = nil
+local resizeChangedConn = nil
+local resizeEndedConn = nil
+
+ResizeBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        resizing = true
+        resizeStart = input.Position
+        startSize = MainFrame.Size
+        
+        resizeChangedConn = UserInputService.InputChanged:Connect(function(input)
+            if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - resizeStart
+                -- Минимальная ширина 250, минимальная высота 200
+                local newWidth = math.max(250, startSize.X.Offset + delta.X)
+                local newHeight = math.max(200, startSize.Y.Offset + delta.Y)
+                MainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+            end
+        end)
+        
+        resizeEndedConn = UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                resizing = false
+                if resizeChangedConn then resizeChangedConn:Disconnect() end
+                if resizeEndedConn then resizeEndedConn:Disconnect() end
+            end
+        end)
+    end
+end)
+
+-- ============================================================
+-- ПЕРЕТАСКИВАНИЕ ОКНА
+-- ============================================================
 local dragging  = false
 local dragStart = nil
 local startPos  = nil
@@ -302,6 +356,8 @@ DestroyBtn.MouseButton1Click:Connect(function()
     if insertConnection  then insertConnection:Disconnect()  end
     if inputChangedConn  then inputChangedConn:Disconnect()  end
     if inputEndedConn    then inputEndedConn:Disconnect()    end
+    if resizeChangedConn then resizeChangedConn:Disconnect() end
+    if resizeEndedConn   then resizeEndedConn:Disconnect()   end
 
     ScreenGui:Destroy()
     print("[delta] GUI destroyed.")
