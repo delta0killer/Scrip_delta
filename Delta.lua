@@ -6,25 +6,29 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local GUI_NAME = "DeltaAnimeZombieArena" 
 
+-- Удаляем старый интерфейс, если он был
 if LocalPlayer.PlayerGui:FindFirstChild(GUI_NAME) then
     LocalPlayer.PlayerGui[GUI_NAME]:Destroy()
 end
 
+-- ================== СОЗДАНИЕ GUI ==================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = GUI_NAME
 ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+-- Главное окно (Компактный стартовый размер 280x240)
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 280, 0, 240)
-MainFrame.Position = UDim2.new(0.5, -140, 0.5, -120) -- Появляется ровно по центру
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -120)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 1
 MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
 MainFrame.Active = true
 MainFrame.Parent = ScreenGui
 
+-- Шапка
 local TitleBar = Instance.new("Frame")
 TitleBar.Size = UDim2.new(1, 0, 0, 32)
 TitleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -71,6 +75,7 @@ CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 14
 CloseBtn.Parent = TitleBar
 
+-- Область контента (Скролл)
 local ContentFrame = Instance.new("ScrollingFrame")
 ContentFrame.Size = UDim2.new(1, -12, 1, -44) 
 ContentFrame.Position = UDim2.new(0, 6, 0, 38)
@@ -87,6 +92,7 @@ ListLayout.Padding = UDim.new(0, 4)
 ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ListLayout.Parent = ContentFrame
 
+-- Уголок для изменения размера
 local ResizeBtn = Instance.new("TextButton")
 ResizeBtn.Size = UDim2.new(0, 24, 0, 24)
 ResizeBtn.Position = UDim2.new(1, -24, 1, -24)
@@ -97,6 +103,7 @@ ResizeBtn.TextSize = 14
 ResizeBtn.Active = true
 ResizeBtn.Parent = MainFrame
 
+-- ================== ЭЛЕМЕНТЫ UI ==================
 local function CreateToggle(name, desc, callback)
     local TFrame = Instance.new("Frame")
     TFrame.Size = UDim2.new(1, 0, 0, 44)
@@ -209,22 +216,36 @@ local function CreateSlider(name, min, max, default, callback)
         callback(v)
     end
 
-    Knob.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true end end)
-    Bar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true update(i) end end)
-    UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then update(i) end end)
-    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+    Knob.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true end
+    end)
+    Bar.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true update(i) end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then update(i) end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
     callback(default)
 end
 
+-- ================== ЛОГИКА СКРИПТОВ ==================
 local undergroundActive, platform, camPart, camConn = false, nil, nil, nil
 local killAuraActive, combatRemote = false, nil
 local currentRadius = 50
 local espActive, espHighlights = false, {}
 
+-- Поиск ремоута атаки
 for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-    if obj:IsA("RemoteEvent") and obj.Name == "Combat" then combatRemote = obj break end
+    if obj:IsA("RemoteEvent") and obj.Name == "Combat" then 
+        combatRemote = obj 
+        break 
+    end
 end
 
+-- 1. Активация Underground (Платформа + Камера)
 local function Underground_Enable()
     if undergroundActive then return end
     local char = LocalPlayer.Character
@@ -232,25 +253,39 @@ local function Underground_Enable()
     undergroundActive = true
     local hrp = char.HumanoidRootPart
     
+    -- Создаем платформу (чуть ниже ног)
     platform = Instance.new("Part")
     platform.Size = Vector3.new(15, 2, 15)
     platform.Position = Vector3.new(hrp.Position.X, -26, hrp.Position.Z)
-    platform.Anchored, platform.CanCollide, platform.Transparency = true, true, 0.5
+    platform.Anchored = true
+    platform.CanCollide = true
+    platform.Transparency = 0.5
     platform.Color = Color3.fromRGB(0, 255, 0)
     platform.Parent = workspace
 
+    -- Создаем камеру
     camPart = Instance.new("Part")
     camPart.Size = Vector3.new(1, 1, 1)
-    camPart.Transparency, camPart.CanCollide, camPart.Anchored = 1, false, true
+    camPart.Transparency = 1
+    camPart.CanCollide = false
+    camPart.Anchored = true
     camPart.Position = Vector3.new(hrp.Position.X, 25, hrp.Position.Z)
     camPart.Parent = workspace
     workspace.CurrentCamera.CameraSubject = camPart
 
+    -- Ставим игрока на платформу
+    hrp.CFrame = CFrame.new(hrp.Position.X, -24, hrp.Position.Z)
+
+    -- Цикл синхронизации (чтобы платформа и камера летали за игроком)
     camConn = RunService.Heartbeat:Connect(function()
         if hrp and hrp.Parent and platform then
             platform.CFrame = CFrame.new(hrp.Position.X, -26, hrp.Position.Z)
             camPart.CFrame = CFrame.new(hrp.Position.X, 25, hrp.Position.Z)
-            if hrp.Velocity.Y < -10 then hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z) end
+            
+            -- Защита от падения (если физика глючит, подкидываем вверх)
+            if hrp.Velocity.Y < -10 then
+                hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
+            end
         end
     end)
 end
@@ -261,58 +296,86 @@ local function Underground_Disable()
     if camConn then camConn:Disconnect() camConn = nil end
     if platform then platform:Destroy() platform = nil end
     if camPart then camPart:Destroy() camPart = nil end
+    
     local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") then workspace.CurrentCamera.CameraSubject = char.Humanoid end
+    if char and char:FindFirstChild("Humanoid") then
+        workspace.CurrentCamera.CameraSubject = char.Humanoid
+    end
 end
 
+-- 2. NoClip (проход сквозь стены)
 local function NoClip_Enable()
     task.spawn(function()
         while undergroundActive or killAuraActive do
             task.wait(0.1)
             local char = LocalPlayer.Character
-            if char then for _, v in ipairs(char:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end end
+            if char then
+                for _, v in ipairs(char:GetDescendants()) do
+                    if v:IsA("BasePart") then v.CanCollide = false end
+                end
+            end
         end
     end)
 end
 
+-- 3. Kill Aura (Быстрая, с поиском цели)
 local function KillAura_Loop()
     while killAuraActive do
-        RunService.Heartbeat:Wait() 
+        RunService.Heartbeat:Wait() -- Синхронизация с кадром (быстрее и стабильнее)
+        
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") and combatRemote then
             local root = char.HumanoidRootPart
             local closest, dist = nil, math.huge
+            
+            -- Ищем ближайшего зомби
             for _, obj in ipairs(workspace:GetDescendants()) do
                 if obj:IsA("Model") and obj ~= char then
                     local hum = obj:FindFirstChildOfClass("Humanoid")
                     local hrp = obj:FindFirstChild("HumanoidRootPart")
                     if hum and hrp and hum.Health > 0 and Players:GetPlayerFromCharacter(obj) == nil then
                         local d = (hrp.Position - root.Position).Magnitude
-                        if d <= currentRadius and d < dist then closest, dist = obj, d end
+                        if d <= currentRadius and d < dist then 
+                            closest, dist = obj, d 
+                        end
                     end
                 end
             end
+            
+            -- Если нашли цель, бьем точно в нее
             if closest then
                 local targetHrp = closest:FindFirstChild("HumanoidRootPart")
-                if targetHrp then combatRemote:FireServer("M1", (targetHrp.Position - root.Position).Unit) end
+                if targetHrp then
+                    local dir = (targetHrp.Position - root.Position).Unit
+                    combatRemote:FireServer("M1", dir)
+                end
             else
-                for i = 0, 315, 45 do combatRemote:FireServer("M1", (root.CFrame * CFrame.Angles(0, math.rad(i), 0)).LookVector) end
+                -- Если никого нет, бьем веером вокруг себя (на всякий случай)
+                for i = 0, 315, 45 do
+                    local look = (root.CFrame * CFrame.Angles(0, math.rad(i), 0)).LookVector
+                    combatRemote:FireServer("M1", look)
+                end
             end
         end
     end
 end
 
+-- 4. ESP (Подсветка зомби)
 local function ESP_Loop()
     while espActive do
-        task.wait(0.5)
+        task.wait(0.5) -- Проверяем раз в полсекунды, чтобы не лагало
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and obj ~= LocalPlayer.Character then
                 local hum = obj:FindFirstChildOfClass("Humanoid")
                 local n = string.lower(obj.Name)
+                
+                -- Проверяем, зомби ли это
                 if (hum and hum.Health > 0) or string.find(n, "zombie") or string.find(n, "enemy") or string.find(n, "mob") then
                     if Players:GetPlayerFromCharacter(obj) == nil and not espHighlights[obj] then
                         local h = Instance.new("Highlight")
-                        h.FillColor, h.FillTransparency, h.OutlineColor = Color3.fromRGB(255, 0, 0), 0.4, Color3.fromRGB(255, 255, 255)
+                        h.FillColor = Color3.fromRGB(255, 0, 0)
+                        h.FillTransparency = 0.4
+                        h.OutlineColor = Color3.fromRGB(255, 255, 255)
                         h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         h.Parent = obj
                         espHighlights[obj] = h
@@ -323,12 +386,41 @@ local function ESP_Loop()
     end
 end
 
-CreateToggle("Underground", "Платформа + Камера", function(s) if s then NoClip_Enable() Underground_Enable() else Underground_Disable() end end)
-CreateSlider("Aura Radius", 20, 100, 50, function(v) currentRadius = v end)
-CreateToggle("Kill Aura", "Быстрый удар по зомби", function(s) if s and combatRemote then killAuraActive = true task.spawn(KillAura_Loop) else killAuraActive = false end end)
-CreateToggle("ESP", "Подсветка зомби", function(s) if s then espActive = true task.spawn(ESP_Loop) else espActive = false for o, h in pairs(espHighlights) do h:Destroy() end espHighlights = {} end end)
+-- ================== ПРИВЯЗКА КНОПОК ==================
+CreateToggle("Underground Platform", "Зеленая платформа + Камера", function(s)
+    if s then 
+        NoClip_Enable() 
+        Underground_Enable() 
+    else 
+        Underground_Disable() 
+    end
+end)
 
--- ================== ФИКС: ОГРАНИЧЕНИЕ ПЕРЕТАСКИВАНИЯ ==================
+CreateSlider("Aura Radius", 20, 100, 50, function(v) 
+    currentRadius = v 
+end)
+
+CreateToggle("Kill Aura (Fast)", "Быстрый удар по зомби", function(s)
+    if s and combatRemote then 
+        killAuraActive = true 
+        task.spawn(KillAura_Loop) 
+    else 
+        killAuraActive = false 
+    end
+end)
+
+CreateToggle("ESP (X-Ray)", "Подсветка зомби", function(s)
+    if s then 
+        espActive = true 
+        task.spawn(ESP_Loop) 
+    else 
+        espActive = false 
+        for o, h in pairs(espHighlights) do h:Destroy() end 
+        espHighlights = {} 
+    end
+end)
+
+-- ================== УПРАВЛЕНИЕ ОКНОМ (Перетаскивание и Ресайз) ==================
 local drag, rsize = false, false
 local dStart, rStart, sPos, sSize = nil, nil, nil, nil
 
@@ -347,19 +439,8 @@ end)
 UserInputService.InputChanged:Connect(function(i)
     if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local d = i.Position - dStart
-        local newX = sPos.X.Offset + d.X
-        local newY = sPos.Y.Offset + d.Y
-        
-        -- НЕ ДАЕМ УТАЩИТЬ ОКНО ЗА ЭКРАН (Защита от "Проеба")
-        local screenX = workspace.CurrentCamera.ViewportSize.X
-        local screenY = workspace.CurrentCamera.ViewportSize.Y
-        
-        newX = math.clamp(newX, -MainFrame.AbsoluteSize.X + 50, screenX - 50)
-        newY = math.clamp(newY, 0, screenY - 32)
-        
-        MainFrame.Position = UDim2.new(0, newX, 0, newY)
+        MainFrame.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + d.X, sPos.Y.Scale, sPos.Y.Offset + d.Y)
     end
-    
     if rsize and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local d = i.Position - rStart
         local newW = math.max(200, sSize.X.Offset + d.X)
@@ -368,8 +449,13 @@ UserInputService.InputChanged:Connect(function(i)
     end
 end)
 
-UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag, rsize = false, false end end)
+UserInputService.InputEnded:Connect(function(i) 
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then 
+        drag, rsize = false, false 
+    end 
+end)
 
+-- Сворачивание окна
 local isMin = false
 local lastH = 240
 MinimizeBtn.MouseButton1Click:Connect(function()
@@ -388,9 +474,13 @@ MinimizeBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Закрытие и очистка
 CloseBtn.MouseButton1Click:Connect(function()
     if undergroundActive then Underground_Disable() end
     killAuraActive, espActive = false, false
     for o, h in pairs(espHighlights) do h:Destroy() end
     ScreenGui:Destroy()
+    print("[delta] Скрипт выгружен.")
 end)
+
+print("[delta] Скрипт успешно загружен!")
